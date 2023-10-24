@@ -23,19 +23,22 @@ struct ContentCore: Reducer {
     Reduce { state, action in
       switch action {
       case .showDetailButtonTapped:
-        return .send(.changeShowingDetailView).animation(.default)
+        // 1. publisher animation is not working
+        //
+//        return .send(.changeShowingDetailView).animation(.default)
         
-        //        return .run { send in
-        //          await send(.changeShowingDetailView)
-        //        }
-        //        .animation(.default)
+        // 2. run animation is working
+        //
+        return .run { send in
+          await send(.changeShowingDetailView)
+        }
+        .animation(.default)
         
       case .changeShowingDetailView:
         state.isShowingDetailView.toggle()
         return .none
       }
     }
-    ._printChanges()
   }
 }
 
@@ -70,6 +73,9 @@ struct ContentView: View {
           .matchedGeometryEffect(id: "detail", in: self.namespace)
           .onTapGesture {
             self.viewStore.send(.showDetailButtonTapped)
+          }
+          .transaction {
+            print("transaction ->", $0)
           }
       }
     }
