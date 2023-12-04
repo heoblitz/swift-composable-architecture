@@ -377,9 +377,15 @@ public final class Store<State, Action> {
   /// - Returns: A new store with its domain (state and action) transformed.
   public func scope<ChildState, ChildAction>(
     state toChildState: @escaping (_ state: State) -> ChildState,
-    action fromChildAction: @escaping (_ childAction: ChildAction) -> Action
+    action fromChildAction: @escaping (_ childAction: ChildAction) -> Action,
+    withDependencies prepareDependencies: @escaping (inout DependencyValues) -> Void = { _ in }
   ) -> Store<ChildState, ChildAction> {
-    self.scope(state: toChildState, action: fromChildAction, removeDuplicates: nil)
+    self.scope(
+      state: toChildState,
+      action: fromChildAction,
+      removeDuplicates: nil,
+      withDependencies: prepareDependencies
+    )
   }
 
   /// Scopes the store to one that exposes child state and actions.
@@ -394,26 +400,30 @@ public final class Store<State, Action> {
   public func scope<ChildState, ChildAction>(
     state toChildState: @escaping (_ state: State) -> PresentationState<ChildState>,
     action fromChildAction: @escaping (_ presentationAction: PresentationAction<ChildAction>) ->
-      Action
+      Action,
+    withDependencies prepareDependencies: @escaping (inout DependencyValues) -> Void
   ) -> Store<PresentationState<ChildState>, PresentationAction<ChildAction>> {
     self.scope(
       state: toChildState,
       action: fromChildAction,
-      removeDuplicates: { $0.sharesStorage(with: $1) }
+      removeDuplicates: { $0.sharesStorage(with: $1) },
+      withDependencies: prepareDependencies
     )
   }
 
   func scope<ChildState, ChildAction>(
     state toChildState: @escaping (State) -> ChildState,
     action fromChildAction: @escaping (ChildAction) -> Action,
-    removeDuplicates isDuplicate: ((ChildState, ChildState) -> Bool)?
+    removeDuplicates isDuplicate: ((ChildState, ChildState) -> Bool)?,
+    withDependencies prepareDependencies: @escaping (inout DependencyValues) -> Void
   ) -> Store<ChildState, ChildAction> {
     self.threadCheck(status: .scope)
     return self.reducer.rescope(
       self,
       state: toChildState,
       action: { fromChildAction($1) },
-      removeDuplicates: isDuplicate
+      removeDuplicates: isDuplicate,
+      withDependencies: prepareDependencies
     )
   }
 
@@ -702,13 +712,15 @@ extension Reducer {
     _ store: Store<State, Action>,
     state toChildState: @escaping (State) -> ChildState,
     action fromChildAction: @escaping (ChildState, ChildAction) -> Action?,
-    removeDuplicates isDuplicate: ((ChildState, ChildState) -> Bool)?
+    removeDuplicates isDuplicate: ((ChildState, ChildState) -> Bool)?,
+    withDependencies prepareDependencies: @escaping (inout DependencyValues) -> Void = { _ in }
   ) -> Store<ChildState, ChildAction> {
     (self as? any AnyScopedReducer ?? ScopedReducer(rootStore: store)).rescope(
       store,
       state: toChildState,
       action: fromChildAction,
-      removeDuplicates: isDuplicate
+      removeDuplicates: isDuplicate,
+      withDependencies: prepareDependencies
     )
   }
 }
@@ -764,7 +776,8 @@ protocol AnyScopedReducer {
     _ store: Store<ScopedState, ScopedAction>,
     state toRescopedState: @escaping (ScopedState) -> RescopedState,
     action fromRescopedAction: @escaping (RescopedState, RescopedAction) -> ScopedAction?,
-    removeDuplicates isDuplicate: ((RescopedState, RescopedState) -> Bool)?
+    removeDuplicates isDuplicate: ((RescopedState, RescopedState) -> Bool)?,
+    withDependencies prepareDependencies: @escaping (inout DependencyValues) -> Void
   ) -> Store<RescopedState, RescopedAction>
 }
 
@@ -774,7 +787,8 @@ extension ScopedReducer: AnyScopedReducer {
     _ store: Store<ScopedState, ScopedAction>,
     state toRescopedState: @escaping (ScopedState) -> RescopedState,
     action fromRescopedAction: @escaping (RescopedState, RescopedAction) -> ScopedAction?,
-    removeDuplicates isDuplicate: ((RescopedState, RescopedState) -> Bool)?
+    removeDuplicates isDuplicate: ((RescopedState, RescopedState) -> Bool)?,
+    withDependencies prepareDependencies: @escaping (inout DependencyValues) -> Void = { _ in }
   ) -> Store<RescopedState, RescopedAction> {
     let fromScopedAction = self.fromScopedAction as! (ScopedState, ScopedAction) -> RootAction?
     let reducer = ScopedReducer<RootState, RootAction, RescopedState, RescopedAction>(
@@ -786,7 +800,7 @@ extension ScopedReducer: AnyScopedReducer {
     let childStore = Store<RescopedState, RescopedAction>(
       initialState: toRescopedState(store.state.value)
     ) {
-      reducer
+      reducer.transformDependency(\.self, transform: prepareDependencies)
     }
     childStore._isInvalidated = store._isInvalidated
     childStore.parentCancellable = store.state
