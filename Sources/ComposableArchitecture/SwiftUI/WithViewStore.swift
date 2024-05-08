@@ -394,27 +394,6 @@ public struct WithViewStore<ViewState, ViewAction, Content: View>: View {
   #endif
 
   public var body: Content {
-    #if DEBUG
-      Logger.shared.log("WithView\(storeTypeName).body")
-      if let prefix = self.prefix {
-        var stateDump = ""
-        customDump(self.viewStore.state, to: &stateDump, indent: 2)
-        let difference =
-          self.previousState(self.viewStore.state)
-          .map {
-            diff($0, self.viewStore.state).map { "(Changed state)\n\($0)" }
-              ?? "(No difference in state detected)"
-          }
-          ?? "(Initial state)\n\(stateDump)"
-        print(
-          """
-          \(prefix.isEmpty ? "" : "\(prefix): ")\
-          WithViewStore<\(typeName(ViewState.self)), \(typeName(ViewAction.self)), _>\
-          @\(self.file):\(self.line) \(difference)
-          """
-        )
-      }
-    #endif
     return self.content(ViewStore(self.viewStore))
   }
 
