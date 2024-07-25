@@ -112,7 +112,7 @@ public enum ReducerBuilder<State, Action> {
     }
   }
 
-  public struct _Sequence<R0: Reducer, R1: Reducer>: Reducer
+  public class _Sequence<R0: Reducer, R1: Reducer>: Reducer
   where R0.State == R1.State, R0.Action == R1.Action {
     @usableFromInline
     let r0: R0
